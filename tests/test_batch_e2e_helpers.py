@@ -11,6 +11,7 @@ from kubernetes.client import ApiException  # type: ignore[import-untyped]
 from tests.e2e.batch_log_contract import PROVIDER_OUTPUT_LOG_PREFIX
 from tests.e2e.batch_runner import (
     _body_from_result_cr,
+    _build_job_spec,
     _delete_config_map_ignore_not_found,
     _enrich_body_from_pod_logs,
     _needs_pod_log_enrichment,
@@ -291,6 +292,77 @@ class TestOtelVerify:
             "     -> event: Str(gen_ai.choice)"
         )
         assert not logs_contain_audit_logs_for_run(logs, self.RUN_UID, phase="analysis")
+
+
+class TestBuildJobSpec:
+    def _config(self, *, job_env: dict[str, str] | None = None) -> BatchE2EConfig:
+        llm_secret = resolve_llm_secret("openai-agents")
+        return BatchE2EConfig(
+            namespace="ns",
+            sandbox_image="img:tag",
+            service_account="sa",
+            llm_secret=llm_secret,
+            lightspeed_provider="openai",
+            model="gpt-5-mini",
+            provider_name="openai-agents",
+            session_id="sess",
+            otel_endpoint="",
+            otel_ca_secret="",
+            verify_full_fixtures=False,
+            job_env=job_env or {},
+        )
+
+    def _env(self, job: Any) -> dict[str, str]:
+        env = job.spec["template"]["spec"]["containers"][0]["env"]
+        return {item["name"]: item["value"] for item in env}
+
+    def test_sets_required_execution_limit_env_defaults(self) -> None:
+        job = _build_job_spec(
+            self._config(),
+            "job-name",
+            "input-cm",
+            {"app": "test"},
+            "run-uid",
+            "analysis",
+        )
+
+        env = self._env(job)
+
+        assert env["LIGHTSPEED_AGENT_TIMEOUT_SECONDS"] == "600"
+        assert env["LIGHTSPEED_AGENT_MAX_TURNS"] == "200"
+
+    def test_timeout_ms_override_rounds_up_to_seconds(self) -> None:
+        job = _build_job_spec(
+            self._config(),
+            "job-name",
+            "input-cm",
+            {"app": "test"},
+            "run-uid",
+            "analysis",
+            timeout_ms=1500,
+        )
+
+        assert self._env(job)["LIGHTSPEED_AGENT_TIMEOUT_SECONDS"] == "2"
+
+    def test_job_env_overrides_execution_limit_defaults(self) -> None:
+        job = _build_job_spec(
+            self._config(
+                job_env={
+                    "LIGHTSPEED_AGENT_TIMEOUT_SECONDS": "42",
+                    "LIGHTSPEED_AGENT_MAX_TURNS": "7",
+                }
+            ),
+            "job-name",
+            "input-cm",
+            {"app": "test"},
+            "run-uid",
+            "analysis",
+        )
+
+        env = self._env(job)
+
+        assert env["LIGHTSPEED_AGENT_TIMEOUT_SECONDS"] == "42"
+        assert env["LIGHTSPEED_AGENT_MAX_TURNS"] == "7"
 
 
 class TestRunBatchQuery:

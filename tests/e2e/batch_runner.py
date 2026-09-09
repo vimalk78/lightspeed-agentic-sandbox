@@ -61,6 +61,9 @@ _STEP_TO_KIND: dict[str, str] = {
     "escalation": "EscalationResult",
 }
 
+E2E_DEFAULT_AGENT_TIMEOUT_SECONDS = 600
+E2E_DEFAULT_AGENT_MAX_TURNS = "200"
+
 
 @dataclass
 class RunBatchResult:
@@ -467,9 +470,15 @@ def _build_job_spec(
         env.append({"name": key, "value": value})
     for key, value in config.job_env.items():
         env.append({"name": key, "value": value})
-    if timeout_ms is not None:
-        env.append({"name": "LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "value": str(timeout_ms // 1000)})
-        env.append({"name": "LIGHTSPEED_AGENT_MAX_TURNS", "value": "200"})
+
+    env_names = {item["name"] for item in env}
+    if "LIGHTSPEED_AGENT_TIMEOUT_SECONDS" not in env_names:
+        timeout_seconds = E2E_DEFAULT_AGENT_TIMEOUT_SECONDS
+        if timeout_ms is not None:
+            timeout_seconds = max(1, (timeout_ms + 999) // 1000)
+        env.append({"name": "LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "value": str(timeout_seconds)})
+    if "LIGHTSPEED_AGENT_MAX_TURNS" not in env_names:
+        env.append({"name": "LIGHTSPEED_AGENT_MAX_TURNS", "value": E2E_DEFAULT_AGENT_MAX_TURNS})
     if otel_enabled:
         env.extend(
             [

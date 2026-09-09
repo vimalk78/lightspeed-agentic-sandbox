@@ -388,6 +388,18 @@ class TestBuildConditionsTimeout:
         )
         assert conds[1]["reason"] == "AgentTimeout"
 
+    def test_timeout_status_includes_failure_reason_even_if_success_flag_is_wrong(self) -> None:
+        status = build_status(
+            "AnalysisResult",
+            {"success": True, "summary": "timeout summary"},
+            started_at=_dt(),
+            completed_at=_dt(),
+            timed_out=True,
+        )
+
+        assert status["failureReason"] == "timeout summary"
+        assert status["conditions"][1]["reason"] == "AgentTimeout"
+
     def test_success_when_timed_out_false(self) -> None:
         """When timed_out=False and succeeded=True, reason is Succeeded."""
         conds = build_conditions(

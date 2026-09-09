@@ -296,7 +296,12 @@ def build_status(
         raise ValueError(msg)
 
     resolved_failure = _infer_failure_reason(agent_output, failure_reason)
-    succeeded = _agent_succeeded(agent_output, resolved_failure)
+    if timed_out and resolved_failure is None:
+        summary = agent_output.get("summary")
+        resolved_failure = (
+            summary if isinstance(summary, str) and summary else "Agent invocation timeout"
+        )
+    succeeded = _agent_succeeded(agent_output, resolved_failure) and not timed_out
 
     status: dict[str, Any] = {}
     if resolved_failure is not None:

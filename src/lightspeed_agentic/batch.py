@@ -223,15 +223,15 @@ def main() -> None:
             timed_out=agent_result.timed_out,
         )
         logger.info("status updated — exiting 0")
+    except MCPConfigError as exc:
+        write_termination_log(str(exc))
+        sys.exit(1)
+        return
     except ValueError as exc:
         write_termination_log(str(exc))
         sys.exit(1)
         return
     except PublishError as exc:
-        write_termination_log(str(exc))
-        sys.exit(1)
-        return
-    except MCPConfigError as exc:
         write_termination_log(str(exc))
         sys.exit(1)
         return
