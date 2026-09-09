@@ -24,6 +24,7 @@ CONDITION_COMPLETED = "Completed"
 REASON_STEP_STARTED = "StepStarted"
 REASON_SUCCEEDED = "Succeeded"
 REASON_FAILED = "Failed"
+REASON_AGENT_TIMEOUT = "AgentTimeout"
 
 ACTION_REQUIRED_TRUE = "True"
 ACTION_REQUIRED_FALSE = "False"
@@ -73,9 +74,19 @@ def build_conditions(
     started_at: datetime,
     completed_at: datetime,
     succeeded: bool,
+    timed_out: bool = False,
 ) -> list[dict[str, Any]]:
     """Build Started + Completed conditions for a Result CR status."""
-    completed_reason = REASON_SUCCEEDED if succeeded else REASON_FAILED
+    if timed_out:
+        completed_reason = REASON_AGENT_TIMEOUT
+        completed_message = "Agent invocation timeout"
+    elif succeeded:
+        completed_reason = REASON_SUCCEEDED
+        completed_message = "Step completed"
+    else:
+        completed_reason = REASON_FAILED
+        completed_message = "Step failed"
+
     return [
         {
             "type": CONDITION_STARTED,
@@ -88,7 +99,7 @@ def build_conditions(
             "type": CONDITION_COMPLETED,
             "status": "True",
             "reason": completed_reason,
-            "message": "Step completed" if succeeded else "Step failed",
+            "message": completed_message,
             "lastTransitionTime": format_condition_time(completed_at),
         },
     ]
@@ -262,6 +273,7 @@ def build_status(
     completed_at: datetime,
     input_tokens: int = 0,
     output_tokens: int = 0,
+    timed_out: bool = False,
 ) -> dict[str, Any]:
     """Assemble a Result CR status dict from agent output and lifecycle metadata.
 
@@ -275,6 +287,8 @@ def build_status(
         Sandbox-level agent failure message (infra success, agent failed).
     started_at, completed_at:
         Wall-clock bounds for Started / Completed conditions.
+    timed_out:
+        Whether the agent invocation timed out (structured flag, not inferred from summary).
     """
     fields = _STATUS_FIELDS_BY_KIND.get(kind)
     if fields is None:
@@ -314,5 +328,6 @@ def build_status(
         started_at=started_at,
         completed_at=completed_at,
         succeeded=succeeded,
+        timed_out=timed_out,
     )
     return status

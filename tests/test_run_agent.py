@@ -31,7 +31,7 @@ async def test_run_agent_query_success() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is True
     assert "mock result" in result.output["summary"]
@@ -49,7 +49,7 @@ async def test_run_agent_query_with_system_prompt() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is True
 
@@ -69,7 +69,7 @@ async def test_run_agent_query_with_context() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is True
 
@@ -87,7 +87,7 @@ async def test_run_agent_query_with_output_schema() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is True
 
@@ -104,7 +104,7 @@ async def test_run_agent_query_accepts_traceparent() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
         traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
     )
     assert result.output["success"] is True
@@ -116,7 +116,7 @@ async def test_run_agent_query_timeout() -> None:
 
     class SlowProvider(MockProvider):
         async def query(self, options: ProviderQueryOptions) -> AsyncIterator[ProviderEvent]:
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(2)
             async for event in super().query(options):
                 yield event
 
@@ -129,10 +129,11 @@ async def test_run_agent_query_timeout() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=1,
+        timeout_seconds=0.05,
     )
     assert result.output["success"] is False
-    assert "timed out" in result.output["summary"]
+    assert "timeout" in result.output["summary"].lower()
+    assert result.timed_out is True
 
 
 @pytest.mark.asyncio
@@ -147,7 +148,7 @@ async def test_run_agent_query_empty_response() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is False
     assert result.output["summary"] == "Agent returned empty response"
@@ -165,7 +166,7 @@ async def test_run_agent_query_text_response() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.output["success"] is True
     assert result.output["summary"] == "plain text answer"
@@ -183,7 +184,7 @@ async def test_run_agent_query_audit_enabled() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
         audit_enabled=True,
     )
     assert result.output["success"] is True
@@ -210,7 +211,7 @@ async def test_run_agent_query_audit_with_tool_events() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
         audit_enabled=True,
     )
     assert result.output["success"] is True
@@ -410,7 +411,7 @@ async def test_run_agent_query_invalid_context_returns_agent_failure() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
 
     assert result.output["success"] is False
@@ -439,7 +440,7 @@ async def test_run_agent_query_returns_token_counts() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.input_tokens == 500
     assert result.output_tokens == 200
@@ -463,7 +464,7 @@ async def test_run_agent_query_token_counts_zero_on_timeout() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=1,
+        timeout_seconds=1,
     )
     assert result.input_tokens == 0
     assert result.output_tokens == 0
@@ -484,7 +485,7 @@ async def test_run_agent_query_token_counts_on_text_response() -> None:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
     assert result.input_tokens == 10
     assert result.output_tokens == 5

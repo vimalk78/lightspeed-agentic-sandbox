@@ -358,3 +358,52 @@ class TestBuildStatusTokenUsage:
             output_tokens=0,
         )
         assert status["tokenUsage"] == {"inputTokens": 0, "outputTokens": 0}
+
+
+class TestBuildConditionsTimeout:
+    """Agent timeout handling in build_conditions (OLS-4024)."""
+
+    def test_timeout_sets_agent_timeout_reason(self) -> None:
+        """When timed_out=True, reason is AgentTimeout."""
+        started = _dt()
+        completed = datetime(2026, 8, 15, 12, 31, 0, tzinfo=UTC)
+        conds = build_conditions(
+            started_at=started,
+            completed_at=completed,
+            succeeded=False,
+            timed_out=True,
+        )
+        assert conds[1]["reason"] == "AgentTimeout"
+        assert conds[1]["message"] == "Agent invocation timeout"
+
+    def test_timeout_overrides_success_flag(self) -> None:
+        """When timed_out=True, AgentTimeout reason takes precedence over succeeded=True."""
+        started = _dt()
+        completed = datetime(2026, 8, 15, 12, 31, 0, tzinfo=UTC)
+        conds = build_conditions(
+            started_at=started,
+            completed_at=completed,
+            succeeded=True,
+            timed_out=True,
+        )
+        assert conds[1]["reason"] == "AgentTimeout"
+
+    def test_success_when_timed_out_false(self) -> None:
+        """When timed_out=False and succeeded=True, reason is Succeeded."""
+        conds = build_conditions(
+            started_at=_dt(),
+            completed_at=_dt(),
+            succeeded=True,
+            timed_out=False,
+        )
+        assert conds[1]["reason"] == "Succeeded"
+
+    def test_failed_when_timed_out_false(self) -> None:
+        """When timed_out=False and succeeded=False, reason is Failed."""
+        conds = build_conditions(
+            started_at=_dt(),
+            completed_at=_dt(),
+            succeeded=False,
+            timed_out=False,
+        )
+        assert conds[1]["reason"] == "Failed"

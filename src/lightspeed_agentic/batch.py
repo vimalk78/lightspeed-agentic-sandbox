@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from lightspeed_agentic.config import (
+    parse_agent_timeout,
+    parse_max_turns,
     parse_reasoning_config,
     resolve_router_model,
     resolve_sdk,
@@ -39,8 +41,6 @@ logger = logging.getLogger(__name__)
 
 INPUT_DIR = "/input"
 DEFAULT_SYSTEM_PROMPT = "You are an AI agent."
-DEFAULT_TIMEOUT_MS = 300_000
-DEFAULT_MAX_TURNS = 200
 DEFAULT_SKILLS_DIR = "/app/skills"
 TRACEPARENT_ENV = "TRACEPARENT"
 
@@ -161,6 +161,8 @@ def main() -> None:
         sdk = resolve_sdk()
         reasoning_config = parse_reasoning_config()
         mcp_servers = parse_mcp_servers()
+        agent_timeout_seconds = parse_agent_timeout()
+        agent_max_turns = parse_max_turns()
         readiness_ok, readiness_checks = run_readiness_checks(sdk)
         if not readiness_ok:
             write_termination_log(_format_readiness_failure(readiness_checks))
@@ -176,7 +178,6 @@ def main() -> None:
         capture_content = _resolve_capture_content(audit_enabled)
         agenticrun_uid = os.environ.get("LIGHTSPEED_AGENTICRUN_UID", "").strip()
         skills_dir = os.environ.get("LIGHTSPEED_SKILLS_DIR", DEFAULT_SKILLS_DIR)
-        timeout_ms = _resolve_timeout_ms()
         model = resolve_router_model(provider.name, startup_model)
 
         logger.info(
@@ -199,8 +200,8 @@ def main() -> None:
                 context=inputs.context,
                 skills_dir=skills_dir,
                 model=model,
-                max_turns=DEFAULT_MAX_TURNS,
-                timeout_ms=timeout_ms,
+                max_turns=agent_max_turns,
+                timeout_seconds=agent_timeout_seconds,
                 mcp_servers=mcp_servers,
                 reasoning_config=reasoning_config,
                 audit_enabled=audit_enabled,
@@ -219,8 +220,13 @@ def main() -> None:
             completed_at=completed_at,
             input_tokens=agent_result.input_tokens,
             output_tokens=agent_result.output_tokens,
+            timed_out=agent_result.timed_out,
         )
         logger.info("status updated — exiting 0")
+    except ValueError as exc:
+        write_termination_log(str(exc))
+        sys.exit(1)
+        return
     except PublishError as exc:
         write_termination_log(str(exc))
         sys.exit(1)
@@ -271,18 +277,6 @@ def _resolve_capture_content(audit_enabled: bool) -> bool:
     if raw == "true":
         return True
     return audit_enabled
-
-
-def _resolve_timeout_ms() -> int:
-    """Resolve agent timeout from LIGHTSPEED_TIMEOUT_MS or the default."""
-    raw = os.environ.get("LIGHTSPEED_TIMEOUT_MS", "").strip()
-    if not raw:
-        return DEFAULT_TIMEOUT_MS
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("invalid LIGHTSPEED_TIMEOUT_MS=%r, using default", raw)
-        return DEFAULT_TIMEOUT_MS
 
 
 if __name__ == "__main__":

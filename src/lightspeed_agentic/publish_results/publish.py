@@ -125,6 +125,7 @@ def publish_agent_result(
     completed_at: datetime,
     input_tokens: int = 0,
     output_tokens: int = 0,
+    timed_out: bool = False,
     api: CustomObjectsApi | None = None,
 ) -> None:
     """Assemble status from schema-driven agent output and publish the Result CR."""
@@ -141,6 +142,7 @@ def publish_agent_result(
         completed_at=completed_at,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        timed_out=timed_out,
     )
     publish_result_cr(template, status, api=api)
 

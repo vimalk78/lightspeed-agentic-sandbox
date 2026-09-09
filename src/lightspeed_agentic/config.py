@@ -242,3 +242,49 @@ def resolve_router_model(provider_name: str, model: str | None = None) -> str:
     if sdk_model:
         return sdk_model
     return DEFAULT_MODEL
+
+
+def parse_agent_timeout() -> int:
+    """Parse LIGHTSPEED_AGENT_TIMEOUT_SECONDS env var at startup.
+
+    Returns the timeout in seconds (int). Requires positive integer.
+    Raises ValueError on missing, zero, negative, or malformed input.
+    """
+    raw = os.environ.get("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        raise ValueError("LIGHTSPEED_AGENT_TIMEOUT_SECONDS is required but not set")
+
+    try:
+        timeout_seconds = int(raw)
+    except ValueError as e:
+        raise ValueError(
+            f"LIGHTSPEED_AGENT_TIMEOUT_SECONDS must be a positive integer, got {raw!r}"
+        ) from e
+
+    if timeout_seconds <= 0:
+        raise ValueError(
+            f"LIGHTSPEED_AGENT_TIMEOUT_SECONDS must be positive, got {timeout_seconds}"
+        )
+
+    return timeout_seconds
+
+
+def parse_max_turns() -> int:
+    """Parse LIGHTSPEED_AGENT_MAX_TURNS env var at startup.
+
+    Returns the max turns count (int). Requires integer between 1 and 500 inclusive.
+    Raises ValueError on missing, out-of-range, or malformed input.
+    """
+    raw = os.environ.get("LIGHTSPEED_AGENT_MAX_TURNS", "").strip()
+    if not raw:
+        raise ValueError("LIGHTSPEED_AGENT_MAX_TURNS is required but not set")
+
+    try:
+        max_turns = int(raw)
+    except ValueError as e:
+        raise ValueError(f"LIGHTSPEED_AGENT_MAX_TURNS must be an integer, got {raw!r}") from e
+
+    if max_turns < 1 or max_turns > 500:
+        raise ValueError(f"LIGHTSPEED_AGENT_MAX_TURNS must be between 1 and 500, got {max_turns}")
+
+    return max_turns

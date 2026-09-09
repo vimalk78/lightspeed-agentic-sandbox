@@ -468,7 +468,8 @@ def _build_job_spec(
     for key, value in config.job_env.items():
         env.append({"name": key, "value": value})
     if timeout_ms is not None:
-        env.append({"name": "LIGHTSPEED_TIMEOUT_MS", "value": str(timeout_ms)})
+        env.append({"name": "LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "value": str(timeout_ms // 1000)})
+        env.append({"name": "LIGHTSPEED_AGENT_MAX_TURNS", "value": "200"})
     if otel_enabled:
         env.extend(
             [

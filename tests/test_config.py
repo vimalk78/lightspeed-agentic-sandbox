@@ -6,7 +6,12 @@ import os
 
 import pytest
 
-from lightspeed_agentic.config import parse_reasoning_config, resolve_sdk
+from lightspeed_agentic.config import (
+    parse_agent_timeout,
+    parse_max_turns,
+    parse_reasoning_config,
+    resolve_sdk,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -276,3 +281,123 @@ def test_reasoning_config_number_type(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LIGHTSPEED_REASONING_CONFIG", "42")
     with pytest.raises(ValueError, match="must be a JSON object, got int"):
         parse_reasoning_config()
+
+
+# --- parse_agent_timeout tests ---
+
+
+def test_agent_timeout_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", raising=False)
+    with pytest.raises(
+        ValueError, match="LIGHTSPEED_AGENT_TIMEOUT_SECONDS is required but not set"
+    ):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "")
+    with pytest.raises(
+        ValueError, match="LIGHTSPEED_AGENT_TIMEOUT_SECONDS is required but not set"
+    ):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "   ")
+    with pytest.raises(
+        ValueError, match="LIGHTSPEED_AGENT_TIMEOUT_SECONDS is required but not set"
+    ):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_malformed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "not_a_number")
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "0")
+    with pytest.raises(ValueError, match="must be positive"):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_negative(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "-10")
+    with pytest.raises(ValueError, match="must be positive"):
+        parse_agent_timeout()
+
+
+def test_agent_timeout_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "300")
+    result = parse_agent_timeout()
+    assert result == 300
+
+
+def test_agent_timeout_large_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_TIMEOUT_SECONDS", "3600")
+    result = parse_agent_timeout()
+    assert result == 3600
+
+
+# --- parse_max_turns tests ---
+
+
+def test_max_turns_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LIGHTSPEED_AGENT_MAX_TURNS", raising=False)
+    with pytest.raises(ValueError, match="LIGHTSPEED_AGENT_MAX_TURNS is required but not set"):
+        parse_max_turns()
+
+
+def test_max_turns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "")
+    with pytest.raises(ValueError, match="LIGHTSPEED_AGENT_MAX_TURNS is required but not set"):
+        parse_max_turns()
+
+
+def test_max_turns_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "   ")
+    with pytest.raises(ValueError, match="LIGHTSPEED_AGENT_MAX_TURNS is required but not set"):
+        parse_max_turns()
+
+
+def test_max_turns_malformed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "not_a_number")
+    with pytest.raises(ValueError, match="must be an integer"):
+        parse_max_turns()
+
+
+def test_max_turns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "0")
+    with pytest.raises(ValueError, match="must be between 1 and 500"):
+        parse_max_turns()
+
+
+def test_max_turns_negative(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "-5")
+    with pytest.raises(ValueError, match="must be between 1 and 500"):
+        parse_max_turns()
+
+
+def test_max_turns_too_large(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "501")
+    with pytest.raises(ValueError, match="must be between 1 and 500"):
+        parse_max_turns()
+
+
+def test_max_turns_valid_min(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "1")
+    result = parse_max_turns()
+    assert result == 1
+
+
+def test_max_turns_valid_max(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "500")
+    result = parse_max_turns()
+    assert result == 500
+
+
+def test_max_turns_valid_middle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LIGHTSPEED_AGENT_MAX_TURNS", "10")
+    result = parse_max_turns()
+    assert result == 10

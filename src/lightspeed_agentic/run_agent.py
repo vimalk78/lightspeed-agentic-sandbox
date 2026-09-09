@@ -31,6 +31,7 @@ class AgentResult:
     output: dict[str, Any] = field(default_factory=dict)
     input_tokens: int = 0
     output_tokens: int = 0
+    timed_out: bool = False
 
 
 class ContextFormatError(ValueError):
@@ -143,7 +144,7 @@ async def run_agent_query(
     skills_dir: str,
     model: str,
     max_turns: int,
-    timeout_ms: int,
+    timeout_seconds: int,
     mcp_servers: list[ResolvedMCPServer] | None = None,
     reasoning_config: dict[str, Any] | None = None,
     audit_enabled: bool = False,
@@ -264,17 +265,25 @@ async def run_agent_query(
             finally:
                 otel_context.detach(token)
 
-        await asyncio.wait_for(run(), timeout=timeout_ms / 1000)
+        await asyncio.wait_for(run(), timeout=timeout_seconds)
 
     except TimeoutError:
+        elapsed = time.monotonic() - start_time
         audit_logger.complete(
             success=False,
             input_tokens=0,
             output_tokens=0,
             span=chat_span,
         )
+        timeout_msg = (
+            f"Agent invocation exceeded timeout of {timeout_seconds}s after {elapsed:.1f}s"
+        )
         return AgentResult(
-            output={"success": False, "summary": f"Agent timed out after {timeout_ms}ms"},
+            output={
+                "success": False,
+                "summary": timeout_msg,
+            },
+            timed_out=True,
         )
     except Exception as exc:
         audit_logger.complete(

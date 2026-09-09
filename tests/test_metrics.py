@@ -25,7 +25,7 @@ async def _run(provider: MockProvider) -> dict:
         skills_dir="/workspace",
         model="test-model",
         max_turns=200,
-        timeout_ms=300_000,
+        timeout_seconds=300,
     )
 
 

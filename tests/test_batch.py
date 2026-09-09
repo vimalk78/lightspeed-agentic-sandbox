@@ -60,14 +60,20 @@ class TestBatchMain:
         with (
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch("lightspeed_agentic.batch.run_agent_query", new_callable=AsyncMock) as run_query,
             patch("lightspeed_agentic.batch.publish_agent_result") as publish,
             patch("lightspeed_agentic.batch.otel_runtime_enabled", return_value=True),
@@ -92,6 +98,8 @@ class TestBatchMain:
             assert publish_kwargs["output_tokens"] == 200
             init_tracer.assert_called_once_with(agenticrun_phase="analysis")
             assert run_query.call_args.kwargs["step"] == "analysis"
+            assert run_query.call_args.kwargs["timeout_seconds"] == 300
+            assert run_query.call_args.kwargs["max_turns"] == 200
             exit_mock.assert_not_called()
 
     def test_capture_content_defaults_on_when_audit_enabled(self) -> None:
@@ -100,14 +108,20 @@ class TestBatchMain:
             patch.dict("os.environ", {"LIGHTSPEED_AUDIT_ENABLED": "true"}, clear=False),
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch("lightspeed_agentic.batch.run_agent_query", new_callable=AsyncMock) as run_query,
             patch("lightspeed_agentic.batch.publish_agent_result"),
             patch("lightspeed_agentic.batch.otel_runtime_enabled", return_value=False),
@@ -133,14 +147,20 @@ class TestBatchMain:
             ),
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch("lightspeed_agentic.batch.run_agent_query", new_callable=AsyncMock) as run_query,
             patch("lightspeed_agentic.batch.publish_agent_result"),
             patch("lightspeed_agentic.batch.otel_runtime_enabled", return_value=False),
@@ -165,14 +185,20 @@ class TestBatchMain:
             patch.dict("os.environ", {"TRACEPARENT": traceparent}, clear=False),
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch("lightspeed_agentic.batch.run_agent_query", new_callable=AsyncMock) as run_query,
             patch("lightspeed_agentic.batch.publish_agent_result"),
             patch("lightspeed_agentic.batch.otel_runtime_enabled", return_value=False),
@@ -205,6 +231,9 @@ class TestBatchMain:
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.run_readiness_checks", return_value=(False, checks)),
             patch("lightspeed_agentic.batch.write_termination_log") as write_log,
             patch("lightspeed_agentic.batch.init_tracer") as init_tracer,
@@ -246,12 +275,14 @@ class TestBatchMain:
         with (
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
-            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch("lightspeed_agentic.batch.otel_runtime_enabled", return_value=False),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
@@ -288,6 +319,8 @@ class TestBatchMain:
                 "lightspeed_agentic.batch.parse_mcp_servers",
                 side_effect=MCPConfigError("LIGHTSPEED_MCP_SERVERS must be a JSON array"),
             ),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.write_termination_log") as write_log,
             patch("lightspeed_agentic.batch.init_tracer") as init_tracer,
             patch("lightspeed_agentic.batch.shutdown_tracer"),
@@ -308,11 +341,15 @@ class TestBatchMain:
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
             patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers") as parse_mcp,
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch("lightspeed_agentic.batch.write_termination_log") as write_log,
             patch("lightspeed_agentic.batch.init_tracer") as init_tracer,
             patch("lightspeed_agentic.batch.shutdown_tracer"),
             patch("lightspeed_agentic.batch.sys.exit") as exit_mock,
         ):
+            parse_mcp.side_effect = MCPConfigError("missing or invalid name")
             from lightspeed_agentic.batch import main
 
             main()
@@ -328,14 +365,16 @@ class TestBatchMain:
         with (
             patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
             patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
             patch(
                 "lightspeed_agentic.batch.run_readiness_checks",
                 return_value=(True, {"provider_env": "ok"}),
             ),
-            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
             patch("lightspeed_agentic.batch.create_provider") as create_provider,
             patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
-            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
             patch(
                 "lightspeed_agentic.batch.run_agent_query",
                 new_callable=AsyncMock,
