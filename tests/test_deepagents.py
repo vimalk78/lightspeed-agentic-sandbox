@@ -136,6 +136,15 @@ async def test_close_model_clients_closes_only_initialized_clients() -> None:
     async_client.aclose.assert_awaited_once_with()
 
 
+def test_anthropic_httpx_module_falls_back_to_httpx2() -> None:
+    from lightspeed_agentic.providers.deepagents import _anthropic_httpx_module
+
+    httpx2 = object()
+    base_client = type("AnthropicBaseClient", (), {"httpx2": httpx2})
+
+    assert _anthropic_httpx_module(base_client) is httpx2
+
+
 class TestResolveModel:
     """Test _resolve_model() returns correct ChatModel class per env."""
 

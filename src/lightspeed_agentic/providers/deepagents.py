@@ -29,6 +29,13 @@ from lightspeed_agentic.types import (
     stringify,
 )
 
+
+def _anthropic_httpx_module(base_client: Any) -> Any:
+    """Return the HTTPX module used internally by the installed Anthropic SDK."""
+    module_globals = vars(base_client)
+    return module_globals.get("httpx") or module_globals["httpx2"]
+
+
 # Provider SDK imports (deepagents, langchain-*, MCP) stay inside functions:
 # - _resolve_model loads only the active backend branch (Vertex / Bedrock / direct).
 # - query() / shape / MCP load their SDKs on first use, not at module import.
@@ -100,7 +107,7 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
                 return AnthropicBedrock(
                     **self._client_params,
                     http_client=create_http_client(
-                        httpx_module=cast(Any, anthropic_base_client).httpx
+                        httpx_module=_anthropic_httpx_module(anthropic_base_client)
                     ),
                 )
 
@@ -109,7 +116,7 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
                 return AsyncAnthropicBedrock(
                     **self._client_params,
                     http_client=create_async_http_client(
-                        httpx_module=cast(Any, anthropic_base_client).httpx,
+                        httpx_module=_anthropic_httpx_module(anthropic_base_client),
                     ),
                 )
 
@@ -134,7 +141,9 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
         def _client(self) -> Any:
             return Anthropic(
                 **self._client_params,
-                http_client=create_http_client(httpx_module=cast(Any, anthropic_base_client).httpx),
+                http_client=create_http_client(
+                    httpx_module=_anthropic_httpx_module(anthropic_base_client),
+                ),
             )
 
         @cached_property
@@ -142,7 +151,7 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
             return AsyncAnthropic(
                 **self._client_params,
                 http_client=create_async_http_client(
-                    httpx_module=cast(Any, anthropic_base_client).httpx
+                    httpx_module=_anthropic_httpx_module(anthropic_base_client)
                 ),
             )
 
