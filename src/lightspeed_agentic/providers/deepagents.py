@@ -88,6 +88,7 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
         # langchain_aws uses these Anthropic Bedrock clients internally, but does not
         # expose a stable injection point for a custom HTTPX client. Keep this import
         # aligned with the installed anthropic SDK version.
+        from anthropic import _base_client as anthropic_base_client
         from anthropic.lib.bedrock._client import AnthropicBedrock, AsyncAnthropicBedrock
         from langchain_aws import ChatAnthropicBedrock
 
@@ -96,13 +97,20 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
         class TLSChatAnthropicBedrock(ChatAnthropicBedrock):
             @cached_property
             def _client(self) -> Any:
-                return AnthropicBedrock(**self._client_params, http_client=create_http_client())
+                return AnthropicBedrock(
+                    **self._client_params,
+                    http_client=create_http_client(
+                        httpx_module=cast(Any, anthropic_base_client).httpx
+                    ),
+                )
 
             @cached_property
             def _async_client(self) -> Any:
                 return AsyncAnthropicBedrock(
                     **self._client_params,
-                    http_client=create_async_http_client(),
+                    http_client=create_async_http_client(
+                        httpx_module=cast(Any, anthropic_base_client).httpx,
+                    ),
                 )
 
         kwargs = {
@@ -116,6 +124,7 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
         return TLSChatAnthropicBedrock(**kwargs)
 
     from anthropic import Anthropic, AsyncAnthropic
+    from anthropic import _base_client as anthropic_base_client
     from langchain_anthropic import ChatAnthropic
 
     from lightspeed_agentic.tls import create_async_http_client, create_http_client
@@ -123,11 +132,19 @@ def _resolve_model(model: str, reasoning_config: dict[str, Any] | None = None) -
     class TLSChatAnthropic(ChatAnthropic):
         @cached_property
         def _client(self) -> Any:
-            return Anthropic(**self._client_params, http_client=create_http_client())
+            return Anthropic(
+                **self._client_params,
+                http_client=create_http_client(httpx_module=cast(Any, anthropic_base_client).httpx),
+            )
 
         @cached_property
         def _async_client(self) -> Any:
-            return AsyncAnthropic(**self._client_params, http_client=create_async_http_client())
+            return AsyncAnthropic(
+                **self._client_params,
+                http_client=create_async_http_client(
+                    httpx_module=cast(Any, anthropic_base_client).httpx
+                ),
+            )
 
     kwargs = {"model": model}
     if thinking:

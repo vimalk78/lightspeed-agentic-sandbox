@@ -10,7 +10,7 @@ import re
 import ssl
 import tempfile
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import httpx
 
@@ -191,24 +191,35 @@ def configure_tls(
     return config
 
 
-def create_http_client(**kwargs: Any) -> httpx.Client:
-    """Create a synchronous HTTPX client using the shared TLS context."""
-    return httpx.Client(verify=get_ssl_context(), **kwargs)
+def create_http_client(
+    *,
+    httpx_module: Any | None = None,
+    **kwargs: Any,
+) -> httpx.Client:
+    """Create a synchronous HTTP client using the shared TLS context."""
+    client_module = httpx_module or httpx
+    return cast(httpx.Client, client_module.Client(verify=get_ssl_context(), **kwargs))
 
 
 def create_async_http_client(
     headers: dict[str, str] | None = None,
     timeout: httpx.Timeout | None = None,
     auth: httpx.Auth | None = None,
+    *,
+    httpx_module: Any | None = None,
     **kwargs: Any,
 ) -> httpx.AsyncClient:
-    """Create an asynchronous HTTPX client using the shared TLS context."""
-    return httpx.AsyncClient(
-        verify=get_ssl_context(),
-        headers=headers,
-        timeout=timeout,
-        auth=auth,
-        **kwargs,
+    """Create an asynchronous HTTP client using the shared TLS context."""
+    client_module = httpx_module or httpx
+    return cast(
+        httpx.AsyncClient,
+        client_module.AsyncClient(
+            verify=get_ssl_context(),
+            headers=headers,
+            timeout=timeout,
+            auth=auth,
+            **kwargs,
+        ),
     )
 
 

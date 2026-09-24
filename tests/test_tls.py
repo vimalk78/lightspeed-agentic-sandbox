@@ -217,6 +217,25 @@ def test_httpx_factories_use_shared_ssl_context(monkeypatch: pytest.MonkeyPatch)
         asyncio.run(awaitable)
 
 
+def test_httpx_factories_use_supplied_module() -> None:
+    class FakeClient:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    class FakeAsyncClient(FakeClient):
+        pass
+
+    class FakeHttpx:
+        Client = FakeClient
+        AsyncClient = FakeAsyncClient
+
+    sync_client = tls.create_http_client(httpx_module=FakeHttpx)
+    async_client = tls.create_async_http_client(httpx_module=FakeHttpx)
+
+    assert isinstance(sync_client, FakeClient)
+    assert isinstance(async_client, FakeAsyncClient)
+
+
 def test_create_ssl_context_applies_tls13_ciphersuites_when_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
