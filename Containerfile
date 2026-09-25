@@ -64,7 +64,11 @@ FROM registry.redhat.io/ubi9/podman:9.8 AS podman
 # ---------------------------------------------------------------------------
 FROM ${RUNTIME_BASE_IMAGE}
 
+ARG BUILD_VERSION=unknown
 ARG RUNTIME_DNF_COMMAND=microdnf
+
+ENV LIGHTSPEED_BUILD_VERSION=${BUILD_VERSION}
+LABEL org.opencontainers.image.revision=${BUILD_VERSION}
 
 USER 0
 WORKDIR /app

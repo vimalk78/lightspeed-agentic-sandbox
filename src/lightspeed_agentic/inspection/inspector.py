@@ -12,7 +12,11 @@ from typing import Any, Literal, Protocol, cast
 from opentelemetry.trace import Status, StatusCode
 
 from lightspeed_agentic.inspection.chunking import TokenCodec, chunk_tool_result
-from lightspeed_agentic.inspection.errors import CLASSIFIER_FAILURE_MESSAGE, InspectionError
+from lightspeed_agentic.inspection.errors import (
+    CLASSIFIER_FAILURE_MESSAGE,
+    InspectionError,
+    provider_error_metadata,
+)
 from lightspeed_agentic.inspection.models import ClassifierDecision, ClassifierRequest
 
 logger = logging.getLogger(__name__)
@@ -44,6 +48,9 @@ async def _classify_with_retries(
     sleep: Callable[[float], Awaitable[None]],
 ) -> tuple[ClassifierDecision, int]:
     for attempt in range(3):
+        provider_status_code: int | None = None
+        provider_error_type: str | None = None
+        provider_error_reason: str | None = None
         try:
             remaining = None if deadline is None else deadline - monotonic()
             if remaining is not None and remaining <= 0:
@@ -55,6 +62,11 @@ async def _classify_with_retries(
                 raw_decision = await raw_decision
             decision = ClassifierDecision.model_validate(raw_decision)
         except Exception as exc:
+            (
+                provider_status_code,
+                provider_error_type,
+                provider_error_reason,
+            ) = provider_error_metadata(exc)
             failure_type = (
                 "timeout"
                 if isinstance(exc, (TimeoutError, asyncio.TimeoutError))
@@ -67,6 +79,9 @@ async def _classify_with_retries(
                     CLASSIFIER_FAILURE_MESSAGE,
                     failure_type=failure_type,
                     attempt_count=attempt + 1,
+                    provider_status_code=provider_status_code,
+                    provider_error_type=provider_error_type,
+                    provider_error_reason=provider_error_reason,
                 ) from None
             delay = (0.5, 1.0)[attempt]
             if deadline is not None and monotonic() + delay >= deadline:
@@ -158,14 +173,26 @@ async def inspect_tool_result(
                 span.set_attribute("inspection.attempt_count", exc.attempt_count or 3)
                 span.set_attribute("inspection.outcome", "classifier_error")
                 span.set_attribute("inspection.failure_type", exc.failure_type)
+                if exc.provider_status_code is not None:
+                    span.set_attribute("inspection.provider_status_code", exc.provider_status_code)
+                if exc.provider_error_type is not None:
+                    span.set_attribute("inspection.provider_error_type", exc.provider_error_type)
+                if exc.provider_error_reason is not None:
+                    span.set_attribute(
+                        "inspection.provider_error_reason", exc.provider_error_reason
+                    )
                 span.set_status(Status(StatusCode.ERROR))
-                logger.warning(
-                    "tool result safety inspection failed",
-                    extra={
-                        "inspection.outcome": "classifier_error",
-                        "inspection.failure_type": exc.failure_type,
-                    },
-                )
+                extra: dict[str, object] = {
+                    "inspection.outcome": "classifier_error",
+                    "inspection.failure_type": exc.failure_type,
+                }
+                if exc.provider_status_code is not None:
+                    extra["inspection.provider_status_code"] = exc.provider_status_code
+                if exc.provider_error_type is not None:
+                    extra["inspection.provider_error_type"] = exc.provider_error_type
+                if exc.provider_error_reason is not None:
+                    extra["inspection.provider_error_reason"] = exc.provider_error_reason
+                logger.warning("tool result safety inspection failed", extra=extra)
                 raise
 
             span.set_attribute("inspection.attempt_count", attempt_count)

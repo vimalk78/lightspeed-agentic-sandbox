@@ -252,6 +252,7 @@ async def run_agent_query(
                         mcp_servers=mcp_servers or [],
                         reasoning_config=reasoning_config,
                         tool_output_inspection_enabled=tool_output_inspection_enabled,
+                        deadline=time.monotonic() + timeout_seconds,
                     )
                 )
                 event_logger = EventLogger("run")
@@ -289,6 +290,16 @@ async def run_agent_query(
             timed_out=True,
         )
     except Exception as exc:
+        from lightspeed_agentic.inspection.middleware import ToolResultSafetyInspectionFailed
+
+        if isinstance(exc, ToolResultSafetyInspectionFailed):
+            audit_logger.complete(
+                success=False,
+                input_tokens=0,
+                output_tokens=0,
+                span=chat_span,
+            )
+            raise
         audit_logger.complete(
             success=False,
             input_tokens=0,

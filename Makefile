@@ -2,6 +2,7 @@ UV := uv
 
 CONTAINER_RUNTIME := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 IMAGE := lightspeed-agentic-sandbox:latest
+BUILD_VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 SANDBOX_IMAGE ?= $(IMAGE)
 
 ifneq ($(filter e2e,$(MAKECMDGOALS)),)
@@ -51,7 +52,7 @@ verify-hermetic-requirements: ## Verify hermetic build hash files are in sync wi
 	bash scripts/verify_hermetic_requirements.sh
 
 image: ## Build container image for local development and e2e
-	$(CONTAINER_RUNTIME) build -t $(IMAGE) .
+	$(CONTAINER_RUNTIME) build --build-arg BUILD_VERSION=$(BUILD_VERSION) -t $(IMAGE) .
 
 e2e: image ## Batch cluster E2E BDD (make e2e openai-agents). Needs oc/KUBECONFIG; optional: E2E_ARGS, E2E_SKIP_FIXTURES=1.
 	IMAGE="$(IMAGE)" SANDBOX_IMAGE="$(SANDBOX_IMAGE)" E2E_ARGS="$(E2E_ARGS)" bash scripts/e2e-containers.sh $(filter-out e2e,$(MAKECMDGOALS))

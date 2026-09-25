@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
+from lightspeed_agentic.inspection.middleware import ToolResultSafetyInspectionFailed
 from lightspeed_agentic.run_agent import ContextFormatError, format_context_prefix, run_agent_query
 from lightspeed_agentic.types import (
     ProviderEvent,
@@ -150,6 +151,27 @@ async def test_run_agent_query_does_not_invent_correlation(span_exporter) -> Non
     attrs = dict(chat_span.attributes)
     assert "agenticrun.uid" not in attrs
     assert "agenticrun.phase" not in attrs
+
+
+@pytest.mark.asyncio
+async def test_run_agent_query_re_raises_tool_result_safety_failure() -> None:
+    class SafetyFailureProvider(MockProvider):
+        async def query(self, _options: ProviderQueryOptions) -> AsyncIterator[ProviderEvent]:
+            raise ToolResultSafetyInspectionFailed()
+            yield  # pragma: no cover
+
+    with pytest.raises(ToolResultSafetyInspectionFailed):
+        await run_agent_query(
+            SafetyFailureProvider(),
+            prompt="test",
+            system_prompt="You are an AI agent.",
+            output_schema=None,
+            context=None,
+            skills_dir="/workspace",
+            model="test-model",
+            max_turns=200,
+            timeout_seconds=300,
+        )
 
 
 @pytest.mark.asyncio

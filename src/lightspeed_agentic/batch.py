@@ -27,6 +27,7 @@ from lightspeed_agentic.config import (
     resolve_startup_model,
 )
 from lightspeed_agentic.factory import create_provider
+from lightspeed_agentic.inspection.middleware import ToolResultSafetyInspectionFailed
 from lightspeed_agentic.mcp import MCPConfigError, parse_mcp_servers
 from lightspeed_agentic.publish_results.publish import (
     PublishError,
@@ -133,7 +134,8 @@ def main() -> None:
     and exits non-zero. Agent failure still publishes a Result CR and exits 0.
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    logger.info("batch sandbox starting")
+    build_version = os.environ.get("LIGHTSPEED_BUILD_VERSION", "unknown").strip() or "unknown"
+    logger.info("batch sandbox starting build=%s", build_version)
 
     try:
         inputs = read_batch_inputs()
@@ -233,6 +235,10 @@ def main() -> None:
             timed_out=agent_result.timed_out,
         )
         logger.info("status updated — exiting 0")
+    except ToolResultSafetyInspectionFailed:
+        write_termination_log("ToolResultSafetyInspectionFailed")
+        sys.exit(1)
+        return
     except MCPConfigError as exc:
         write_termination_log(str(exc))
         sys.exit(1)

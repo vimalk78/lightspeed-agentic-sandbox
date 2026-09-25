@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from lightspeed_agentic.inspection.chunking import TokenCodec
@@ -143,6 +145,36 @@ async def test_classifier_failures_retry_three_total_attempts_with_exact_delays(
     assert "sensitive" not in str(error.value)
     assert "secret" not in str(error.value)
     assert "raw output" not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_provider_error_metadata_is_safe_and_preserved() -> None:
+    class ProviderError(RuntimeError):
+        status_code: ClassVar[int] = 400
+        body: ClassVar[dict[str, object]] = {
+            "error": {
+                "type": "invalid_request_error",
+                "message": "contains classifier content",
+            }
+        }
+
+    with pytest.raises(InspectionError) as error:
+        await inspect_tool_result(
+            FakeClient([ProviderError(), ProviderError(), ProviderError()]),
+            tool_name="execute",
+            result_type="result",
+            value="sensitive tool result",
+            codec=CharacterCodec(),
+            context_window_tokens=640,
+            instruction_tokens=20,
+            output_tokens=20,
+            sleep=no_sleep,
+        )
+
+    assert error.value.provider_status_code == 400
+    assert error.value.provider_error_type == "invalid_request_error"
+    assert error.value.provider_error_reason == "message_invalid"
+    assert "contains classifier content" not in repr(error.value)
 
 
 @pytest.mark.asyncio

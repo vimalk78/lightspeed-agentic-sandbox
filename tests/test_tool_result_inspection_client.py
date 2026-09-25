@@ -9,62 +9,21 @@ from lightspeed_agentic.inspection.client import LangChainClassifierClient
 from lightspeed_agentic.inspection.models import ClassifierDecision, ClassifierRequest
 
 
-class FakeStructuredModel:
-    def __init__(self) -> None:
-        self.schema: Any = None
+class FakeModel:
+    def __init__(self, response: Any) -> None:
+        self.response = response
         self.messages: list[Any] | None = None
+        self.parameters: dict[str, Any] = {}
 
-    def with_structured_output(self, schema: Any, **kwargs: Any) -> FakeStructuredModel:
-        self.schema = (schema, kwargs)
-        return self
-
-    def bind(self, **_: object) -> FakeStructuredModel:
-        return self
-
-    async def ainvoke(self, messages: list[Any], **_: Any) -> dict[str, object]:
+    async def ainvoke(self, messages: list[Any], **kwargs: Any) -> Any:
         self.messages = messages
-        return {"injectionDetected": False, "category": "none"}
-
-
-class BindableStructuredRunnable:
-    def __init__(self) -> None:
-        self.effective_parameters: dict[str, object] = {}
-        self.messages: list[Any] | None = None
-
-    def bind(self, **kwargs: object) -> BindableStructuredRunnable:
-        self.effective_parameters = kwargs
-        return self
-
-    async def ainvoke(self, messages: list[Any], **kwargs: object) -> dict[str, object]:
-        self.messages = messages
-        assert kwargs == {}
-        return {
-            "injectionDetected": self.effective_parameters
-            == {
-                "temperature": 0,
-                "max_tokens": 128,
-            },
-            "category": "unknown" if self.effective_parameters else "none",
-        }
-
-
-class BindableModel:
-    def __init__(self) -> None:
-        self.structured = BindableStructuredRunnable()
-        self.bound_before_structured = False
-
-    def bind(self, **_: object) -> BindableModel:
-        self.bound_before_structured = True
-        return self
-
-    def with_structured_output(self, _schema: Any, **_: Any) -> BindableStructuredRunnable:
-        assert not self.bound_before_structured
-        return self.structured
+        self.parameters = kwargs
+        return self.response
 
 
 @pytest.mark.asyncio
 async def test_classifier_client_sends_only_dedicated_untrusted_content_messages() -> None:
-    model = FakeStructuredModel()
+    model = FakeModel('{"injectionDetected": false, "category": "none"}')
     client = LangChainClassifierClient(model)
     request = ClassifierRequest(
         toolName="get_pods",
@@ -77,8 +36,7 @@ async def test_classifier_client_sends_only_dedicated_untrusted_content_messages
     decision = await client.classify(request)
 
     assert decision == ClassifierDecision(injectionDetected=False, category="none")
-    assert model.schema is not None
-    assert model.schema[0] is ClassifierDecision
+    assert model.parameters == {"max_tokens": 128}
     assert model.messages is not None
     assert len(model.messages) == 2
     assert "untrusted" in model.messages[0].content.lower()
@@ -89,13 +47,57 @@ async def test_classifier_client_sends_only_dedicated_untrusted_content_messages
 
 
 @pytest.mark.asyncio
-async def test_classifier_client_binds_generation_parameters_to_structured_runnable() -> None:
-    model = BindableModel()
-    client = LangChainClassifierClient(model)
+@pytest.mark.parametrize("flagged", [False, True])
+async def test_classifier_client_adapts_flagged_response(flagged: bool) -> None:
+    model = FakeModel(json.dumps({"flagged": flagged}))
 
-    decision = await client.classify(
+    decision = await LangChainClassifierClient(model).classify(
         ClassifierRequest(
-            toolName="get_pods",
+            toolName="execute",
+            resultType="result",
+            chunkIndex=0,
+            chunkCount=1,
+            content="output",
+        )
+    )
+
+    assert decision == ClassifierDecision(
+        injectionDetected=flagged,
+        category="unknown" if flagged else "none",
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        '```json\\n{"decision":"safe","injection_detected":false,"manipulation_attempt":false}\\n```{"flagged":false}',
+        '**Decision: SAFE** FLAG: false ```json {"decision":"allow","risk_flags":[]} ```',
+        "SAFE - no injected instructions detected; content is plain status output.",
+        '{"decision":"allow","injection_detected":false}',
+    ],
+)
+async def test_classifier_client_accepts_wrapped_safe_responses(response: str) -> None:
+    decision = await LangChainClassifierClient(FakeModel(response)).classify(
+        ClassifierRequest(
+            toolName="execute",
+            resultType="result",
+            chunkIndex=0,
+            chunkCount=1,
+            content="output",
+        )
+    )
+
+    assert decision == ClassifierDecision(injectionDetected=False, category="none")
+
+
+@pytest.mark.asyncio
+async def test_classifier_client_adapts_wrapped_unsafe_response() -> None:
+    decision = await LangChainClassifierClient(
+        FakeModel('```json {"decision":"unsafe","injection_detected":true} ```')
+    ).classify(
+        ClassifierRequest(
+            toolName="execute",
             resultType="result",
             chunkIndex=0,
             chunkCount=1,
@@ -104,49 +106,41 @@ async def test_classifier_client_binds_generation_parameters_to_structured_runna
     )
 
     assert decision == ClassifierDecision(injectionDetected=True, category="unknown")
-    assert model.structured.effective_parameters == {
-        "temperature": 0,
-        "max_tokens": 128,
-    }
 
 
 @pytest.mark.asyncio
-async def test_classifier_client_fails_if_generation_parameters_cannot_be_bound() -> None:
-    class UnbindableStructuredRunnable:
-        def bind(self, **_: object) -> object:
-            raise TypeError("binding is unsupported")
+async def test_classifier_client_parses_text_content_blocks() -> None:
+    model = FakeModel(
+        [
+            {"type": "text", "text": '{"injectionDetected": true, "category": "unknown"}'},
+        ]
+    )
 
-        async def ainvoke(self, _messages: list[Any], **_: Any) -> dict[str, object]:
-            return {"injectionDetected": False, "category": "none"}
-
-    class UnbindableModel:
-        def with_structured_output(self, _schema: Any, **_: Any) -> UnbindableStructuredRunnable:
-            return UnbindableStructuredRunnable()
-
-    with pytest.raises(TypeError, match="binding is unsupported"):
-        await LangChainClassifierClient(UnbindableModel()).classify(
-            ClassifierRequest(
-                toolName="get_pods",
-                resultType="result",
-                chunkIndex=0,
-                chunkCount=1,
-                content="output",
-            )
+    decision = await LangChainClassifierClient(model).classify(
+        ClassifierRequest(
+            toolName="execute",
+            resultType="result",
+            chunkIndex=0,
+            chunkCount=1,
+            content="output",
         )
+    )
+
+    assert decision == ClassifierDecision(injectionDetected=True, category="unknown")
 
 
 @pytest.mark.asyncio
-async def test_classifier_client_rejects_non_strict_model_response() -> None:
-    class InvalidModel(FakeStructuredModel):
-        async def ainvoke(self, _messages: list[Any], **_: Any) -> dict[str, object]:
-            return {
-                "injectionDetected": "false",
-                "category": "none",
-                "reason": "do not expose",
-            }
-
-    with pytest.raises(ValueError, match="injectionDetected"):
-        await LangChainClassifierClient(InvalidModel()).classify(
+@pytest.mark.parametrize(
+    "response",
+    [
+        "not json",
+        '{"injectionDetected": "false", "category": "none"}',
+        '{"injectionDetected": false, "category": "none", "reason": "do not expose"}',
+    ],
+)
+async def test_classifier_client_rejects_non_strict_responses(response: str) -> None:
+    with pytest.raises((ValueError, TypeError)):
+        await LangChainClassifierClient(FakeModel(response)).classify(
             ClassifierRequest(
                 toolName="get_pods",
                 resultType="result",

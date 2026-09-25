@@ -9,6 +9,16 @@ from typing import Any, Protocol
 CHUNK_OVERLAP_TOKENS = 256
 
 
+class Utf8ByteCodec:
+    """Conservative fallback codec used when the provider exposes no tokenizer."""
+
+    def encode(self, text: str) -> list[int]:
+        return list(text.encode("utf-8"))
+
+    def decode(self, tokens: list[int]) -> str:
+        return bytes(tokens).decode("utf-8")
+
+
 class TokenCodec(Protocol):
     """Token encoder/decoder for the active classifier model."""
 

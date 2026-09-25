@@ -10,6 +10,7 @@ import pytest
 
 from lightspeed_agentic.batch import BatchInput, InputReadError
 from lightspeed_agentic.config import ResolvedSDK
+from lightspeed_agentic.inspection.middleware import ToolResultSafetyInspectionFailed
 from lightspeed_agentic.mcp import MCPConfigError
 from lightspeed_agentic.run_agent import AgentResult
 
@@ -111,6 +112,37 @@ class TestBatchMain:
             assert run_query.call_args.kwargs["timeout_seconds"] == 300
             assert run_query.call_args.kwargs["max_turns"] == 200
             exit_mock.assert_not_called()
+
+    def test_safety_failure_writes_marker_without_publishing_result(self) -> None:
+        with (
+            patch("lightspeed_agentic.batch.read_batch_inputs", return_value=_INPUTS),
+            patch("lightspeed_agentic.batch.resolve_sdk", return_value=_MOCK_SDK),
+            patch("lightspeed_agentic.batch.configure_tls"),
+            patch("lightspeed_agentic.batch.parse_reasoning_config", return_value=None),
+            patch("lightspeed_agentic.batch.parse_mcp_servers", return_value=[]),
+            patch("lightspeed_agentic.batch.parse_agent_timeout", return_value=300),
+            patch("lightspeed_agentic.batch.parse_max_turns", return_value=200),
+            patch("lightspeed_agentic.batch.run_readiness_checks", return_value=(True, {})),
+            patch("lightspeed_agentic.batch.create_provider") as create_provider,
+            patch("lightspeed_agentic.batch.resolve_router_model", return_value="test-model"),
+            patch(
+                "lightspeed_agentic.batch.run_agent_query",
+                new_callable=AsyncMock,
+                side_effect=ToolResultSafetyInspectionFailed(),
+            ),
+            patch("lightspeed_agentic.batch.publish_agent_result") as publish,
+            patch("lightspeed_agentic.batch.write_termination_log") as write_log,
+            patch("lightspeed_agentic.batch.sys.exit") as exit_mock,
+        ):
+            create_provider.return_value.name = "deepagents"
+
+            from lightspeed_agentic.batch import main
+
+            main()
+
+        publish.assert_not_called()
+        write_log.assert_called_once_with("ToolResultSafetyInspectionFailed")
+        exit_mock.assert_called_once_with(1)
 
     def test_capture_content_defaults_on_when_audit_enabled(self) -> None:
         """Unset LIGHTSPEED_CAPTURE_CONTENT captures content when audit is on."""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 import pytest
 
@@ -142,7 +143,52 @@ async def test_classifier_error_telemetry_is_controlled(caplog: pytest.LogCaptur
 
     assert tracer.spans[0].attributes["inspection.outcome"] == "classifier_error"
     assert tracer.spans[0].attributes["inspection.failure_type"] == "provider_error"
+    assert "inspection.provider_status_code" not in tracer.spans[0].attributes
+    assert "inspection.provider_error_type" not in tracer.spans[0].attributes
     assert "CLASSIFIER-RAW-OUTPUT" not in caplog.text
+    assert "TOOL-RESULT-SECRET" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_provider_error_telemetry_contains_safe_http_metadata(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    tracer = FakeTracer()
+    caplog.set_level(logging.WARNING)
+
+    class ProviderError(RuntimeError):
+        status_code: ClassVar[int] = 400
+        body: ClassVar[dict[str, object]] = {
+            "error": {
+                "type": "invalid_request_error",
+                "message": "request message contains sensitive data",
+            }
+        }
+
+    class FailingClient:
+        async def classify(self, _request: object, *, deadline: float | None = None) -> object:
+            del deadline
+            raise ProviderError("raw exception")
+
+    with pytest.raises(InspectionError):
+        await inspect_tool_result(
+            FailingClient(),
+            tool_name="execute",
+            result_type="result",
+            value="TOOL-RESULT-SECRET",
+            codec=CharacterCodec(),
+            context_window_tokens=640,
+            instruction_tokens=20,
+            output_tokens=20,
+            tracer=tracer,
+            sleep=no_sleep,
+        )
+
+    assert tracer.spans[0].attributes["inspection.provider_status_code"] == 400
+    assert tracer.spans[0].attributes["inspection.provider_error_type"] == "invalid_request_error"
+    assert tracer.spans[0].attributes["inspection.provider_error_reason"] == "message_invalid"
+    assert "CLASSIFIER-RAW-OUTPUT" not in caplog.text
+    assert "raw exception" not in caplog.text
     assert "TOOL-RESULT-SECRET" not in caplog.text
 
 

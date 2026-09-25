@@ -309,6 +309,8 @@ class DeepAgentsProvider(AgentProvider):
         from deepagents import create_deep_agent
         from deepagents.backends import LocalShellBackend
 
+        classifier_model: Any | None = None
+
         logger.debug(
             "Starting deepagents query model=%s cwd=%s max_turns=%s",
             options.model,
@@ -328,6 +330,54 @@ class DeepAgentsProvider(AgentProvider):
             "backend": backend,
             "system_prompt": options.system_prompt,
         }
+
+        if options.tool_output_inspection_enabled:
+            from lightspeed_agentic.inspection.chunking import Utf8ByteCodec
+            from lightspeed_agentic.inspection.client import LangChainClassifierClient
+            from lightspeed_agentic.inspection.inspector import (
+                inspect_tool_result as run_inspection,
+            )
+            from lightspeed_agentic.inspection.middleware import (
+                ToolResultInspectionMiddleware,
+                ToolResultSafetyInspectionFailed,
+            )
+
+            try:
+                classifier_model = _resolve_model(options.model, reasoning_config=None)
+                classifier_client = LangChainClassifierClient(classifier_model)
+                model_profile = getattr(classifier_model, "profile", {})
+                context_window_tokens = (
+                    model_profile.get("max_input_tokens")
+                    or model_profile.get("max_context_size")
+                    or 100_000
+                )
+
+                async def inspect_tool_result_callback(
+                    tool_name: str,
+                    result_type: str,
+                    value: Any,
+                ) -> Any:
+                    return await run_inspection(
+                        classifier_client,
+                        tool_name=tool_name,
+                        result_type=result_type,
+                        value=value,
+                        codec=Utf8ByteCodec(),
+                        context_window_tokens=context_window_tokens,
+                        instruction_tokens=512,
+                        output_tokens=128,
+                        deadline=options.deadline,
+                        provider="anthropic",
+                        model=options.model,
+                    )
+
+                agent_kwargs["middleware"] = [
+                    ToolResultInspectionMiddleware(inspect_tool_result_callback)
+                ]
+            except Exception as exc:
+                if classifier_model is not None:
+                    await _close_model_clients(classifier_model)
+                raise ToolResultSafetyInspectionFailed() from exc
 
         if has_skills(options.cwd):
             agent_kwargs["skills"] = [options.cwd]
@@ -398,6 +448,8 @@ class DeepAgentsProvider(AgentProvider):
                     )
         finally:
             await _close_model_clients(chat_model)
+            if classifier_model is not None:
+                await _close_model_clients(classifier_model)
 
         if schema_model is not None:
             structured, in_tok, out_tok = await _shape_structured_output(
